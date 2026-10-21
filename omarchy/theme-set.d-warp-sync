@@ -1,0 +1,13 @@
+#!/bin/bash
+# Omarchy 4 theme-set hook: sync Warp Terminal with the theme that was just set.
+# Installed to ~/.config/omarchy/hooks/theme-set.d/warp-sync by install.sh.
+# $1 is the theme name (e.g. "tokyo-night").
+
+SYNC_SCRIPT="__SYNC_SCRIPT__"
+
+if [[ ! -x $SYNC_SCRIPT ]]; then
+  echo "Warp theme sync skipped: $SYNC_SCRIPT is missing or not executable" >&2
+  exit 0
+fi
+# --force: always re-convert so edits to a theme's colors.toml are picked up.
+"$SYNC_SCRIPT" --force --quiet "$1"
