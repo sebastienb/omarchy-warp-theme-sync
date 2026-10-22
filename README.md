@@ -1,237 +1,113 @@
-# Omarchy to Warp Theme Sync
+# Omarchy → Warp Theme Sync
 
-Automatically sync your Omarchy theme changes with Warp Terminal on Linux.
+Keep Warp Terminal in sync with the active [Omarchy](https://omarchy.org/) theme.
 
-## Overview
+When you switch an Omarchy theme, this utility resolves its semantic palette,
+creates a matching Warp custom theme, and selects it automatically. Warp
+hot-reloads its settings, so already-open windows update without restarting.
 
-This project provides a seamless way to sync your active Omarchy theme with Warp Terminal. When you change themes in Omarchy, simply run the sync script to apply the same theme in Warp with all the correct colors extracted from Omarchy's alacritty configuration.
+## What it does
 
-## ✨ Features
-
-- 🎨 **Automatic Theme Detection** - Detects your active Omarchy theme
-- 🔄 **Smart Conversion** - Converts Omarchy alacritty themes to Warp format on-demand
-- 🎯 **Perfect Color Mapping** - Extracts all colors from alacritty.toml files
-- 🚀 **One-Command Sync** - Single script does everything
-- 💾 **Safe Operations** - Automatic backups before changes
-- 🎨 **Custom Theme Support** - Handles custom themes with proper path mapping
-
-## Quick Start
-
-### 1. Clone the Repository
-```bash
-git clone <repo-url>
-cd omarchy-warp
-```
-
-### 2. Make Scripts Executable
-```bash
-chmod +x *.sh
-```
-
-### 3. Sync Your Theme
-```bash
-./sync_omarchy_theme.sh
-```
-
-That's it! Your active Omarchy theme is now applied to Warp Terminal.
-
-## Usage
-
-### Basic Sync
-```bash
-# Sync active Omarchy theme to Warp
-./sync_omarchy_theme.sh
-```
-
-### Theme Management
-```bash
-# List available themes
-./warp_theme_manager.sh list
-
-# Set a specific theme
-./warp_theme_manager.sh set "theme_name"
-
-# Show current theme
-./warp_theme_manager.sh current
-```
-
-### Automation Ideas
-
-#### Add to Shell Startup
-Add to your `.bashrc` or `.zshrc` for automatic sync:
-```bash
-# Auto-sync Omarchy theme to Warp on terminal start
-~/path/to/omarchy-warp/sync_omarchy_theme.sh
-```
-
-#### Create an Alias
-```bash
-# Add to your shell config
-alias sync-theme='~/path/to/omarchy-warp/sync_omarchy_theme.sh'
-
-# Then just run:
-sync-theme
-```
-
-#### File Watcher (Advanced)
-Use `inotifywait` to automatically sync when Omarchy theme changes:
-```bash
-#!/bin/bash
-# Watch for Omarchy theme changes
-inotifywait -m -e modify ~/.config/omarchy/current/theme |
-while read path action file; do
-    ~/path/to/omarchy-warp/sync_omarchy_theme.sh
-done
-```
-
-## How It Works
-
-### The Magic Behind the Sync
-
-1. **📍 Theme Detection**: Reads the symlink at `~/.config/omarchy/current/theme` to find your active theme
-2. **🎨 Color Extraction**: Parses `alacritty.toml` files to extract all terminal colors
-3. **🔧 Smart Conversion**: Converts Omarchy theme format to Warp YAML format
-4. **📁 Installation**: Places the theme in Warp's themes directory
-5. **⚡ Activation**: Updates Warp config with the Custom theme format
-
-### Theme Conversion Details
-
-The sync script intelligently converts themes by:
-- **Primary Colors**: Background, foreground from `[colors.primary]` section
-- **Terminal Colors**: All 16 colors (8 normal + 8 bright) from `[colors.normal]` and `[colors.bright]`
-- **Cursor Color**: Uses cursor color if defined, otherwise falls back to foreground
-- **Smart Fallbacks**: Provides sensible defaults for missing colors
-
-## Project Structure
-
-```
-omarchy-warp/
-├── sync_omarchy_theme.sh      # 🎯 Main sync script (all-in-one)
-├── warp_theme_manager.sh      # 🔧 Advanced theme management
-├── themes/                    # 📁 Generated Warp theme files
-│   ├── everforest.yaml
-│   ├── gruvbox.yaml
-│   └── ...
-└── README.md                  # 📖 This file
-```
-
-## Script Details
-
-### sync_omarchy_theme.sh ⭐
-**The main script that does everything**
-
-```bash
-# Basic usage
-./sync_omarchy_theme.sh
-
-# Show help
-./sync_omarchy_theme.sh --help
-```
-
-**What it does:**
-- Detects your active Omarchy theme automatically
-- Converts the theme to Warp format (only when needed)
-- Installs the theme to Warp's themes directory
-- Sets the theme as active in Warp configuration
-- Handles all color parsing and validation
-- Provides colored output with clear status messages
-
-### warp_theme_manager.sh 🔧
-**Advanced theme management utility**
-
-```bash
-# Available commands
-./warp_theme_manager.sh list              # List all themes
-./warp_theme_manager.sh current           # Show current theme  
-./warp_theme_manager.sh set "theme_name"  # Set specific theme
-./warp_theme_manager.sh install-repo      # Install official themes
-```
-
-**Features:**
-- Supports both built-in and custom themes
-- Proper Custom theme format handling (required for custom themes)
-- Automatic SystemTheme disabling for custom themes
-- Theme discovery and listing
-- Official Warp themes repository integration
-
-## Theme Format
-
-Generated Warp themes follow this structure:
-```yaml
-name: theme_name
-accent: '#color'
-cursor: '#color' 
-background: '#color'
-foreground: '#color'
-details: darker  # or "lighter"
-terminal_colors:
-  bright:
-    black: '#color'
-    red: '#color'
-    # ... 6 more bright colors
-  normal:
-    black: '#color' 
-    red: '#color'
-    # ... 6 more normal colors
-```
+- Installs an Omarchy `theme-set` hook that runs after every theme switch.
+- Converts the active theme's `colors.toml` to Warp's custom-theme YAML format.
+- Covers the background, foreground, accent, cursor, light/dark mode, and all
+  16 ANSI colors.
+- Writes themes to Warp's standard Linux theme directory.
+- Uses Warp's current `settings.toml` configuration and retains a legacy JSON
+  fallback for older Warp versions.
 
 ## Requirements
 
-- **Warp Terminal** (Linux version)
-- **Omarchy** theme manager with alacritty integration
-- **Bash** shell
-- **Optional**: `jq` for better JSON handling (fallback to `sed`)
+- [Omarchy](https://omarchy.org/) with `omarchy-theme-color` available
+  (Omarchy 4+ is the primary supported version).
+- [Warp Terminal for Linux](https://www.warp.dev/).
+- Bash, `awk`, `sed`, and standard GNU userland tools.
 
-## Configuration Paths
+## Install
 
-The scripts work with these standard paths:
-- **Omarchy active theme**: `~/.config/omarchy/current/theme`
-- **Omarchy themes**: `~/.config/omarchy/themes/`
-- **Warp config**: `~/.config/warp-terminal/user_preferences.json`
-- **Warp themes**: `~/.local/share/warp-terminal/themes/`
+Clone the project somewhere permanent—the installed hook points back to this
+checkout—then run the installer:
+
+```bash
+git clone https://github.com/sebastienb/omarchy-warp-theme-sync.git
+cd omarchy-warp-theme-sync
+./install.sh
+```
+
+The installer:
+
+1. Installs `~/.config/omarchy/hooks/theme-set.d/warp-sync`.
+2. Runs an initial conversion and applies the active Omarchy theme to Warp.
+
+After that, use Omarchy normally. For example:
+
+```bash
+omarchy theme set tokyo-night
+```
+
+Warp will follow the theme switch automatically. Warp may take a few seconds
+to discover its themes directory the first time it is created; subsequent
+theme changes are applied live.
+
+## Manual use
+
+```bash
+# Sync the currently active Omarchy theme
+./sync_omarchy_theme.sh
+
+# Regenerate the theme YAML even when it already exists
+./sync_omarchy_theme.sh --force
+
+# Convert and apply a particular installed Omarchy theme
+./sync_omarchy_theme.sh tokyo-night
+
+# Use from a hook or another script (errors only)
+./sync_omarchy_theme.sh --force --quiet
+```
+
+The helper can also inspect or choose a theme directly:
+
+```bash
+./warp_theme_manager.sh current
+./warp_theme_manager.sh list
+./warp_theme_manager.sh set tokyo-night
+```
+
+## How it works
+
+1. Reads the active theme from
+   `~/.local/state/omarchy/current/theme.name`.
+2. Resolves colors from the active theme's `colors.toml` with
+   `omarchy-theme-color --all`.
+3. Falls back to an Omarchy 2/3 theme symlink and `alacritty.toml` when
+   necessary.
+4. Saves the generated YAML under
+   `${XDG_DATA_HOME:-~/.local/share}/warp-terminal/themes/`.
+5. Sets Warp's theme in `~/.config/warp-terminal/settings.toml`, which Warp
+   watches for live changes.
+
+## Uninstall
+
+```bash
+./install.sh --uninstall
+```
+
+This removes only the Omarchy hook. Generated Warp theme files are kept, so
+they remain available in Warp's theme picker; remove them manually if you no
+longer want them.
 
 ## Troubleshooting
 
-### Theme Not Syncing
-```bash
-# Check if Omarchy theme symlink exists
-ls -la ~/.config/omarchy/current/theme
+Run a verbose sync to see the detected theme and palette source:
 
-# Manually run sync with verbose output
-./sync_omarchy_theme.sh
+```bash
+./sync_omarchy_theme.sh --force
 ```
 
-### Colors Look Wrong
-The script prioritizes alacritty.toml files. Make sure your Omarchy theme includes properly formatted alacritty configuration.
-
-### Warp Not Recognizing Theme
-- Restart Warp Terminal after theme changes
-- Ensure SystemTheme is disabled in Warp settings
-- Check that the theme file exists in `~/.local/share/warp-terminal/themes/`
-
-### Permission Issues
-```bash
-# Make scripts executable
-chmod +x *.sh
-
-# Check directory permissions
-ls -la ~/.config/warp-terminal/
-```
-
-## Contributing
-
-Ideas for enhancements:
-- Integration with system dark/light mode detection
-- Support for more terminal color formats
-- Theme preview generation
-- Automatic theme switching based on time of day
+If the hook cannot find the script, reinstall it from the checkout you intend
+to keep. If Warp does not show a custom theme immediately after first install,
+wait briefly or restart Warp once; later changes are detected automatically.
 
 ## License
 
-MIT License - Use and modify freely.
-
-## Links
-
-- [Warp Terminal](https://www.warp.dev/)
-- [Omarchy Theme Manager](https://github.com/eeasuper/omarchy)
-- [Official Warp Themes](https://github.com/warpdotdev/themes)
+[MIT](LICENSE)

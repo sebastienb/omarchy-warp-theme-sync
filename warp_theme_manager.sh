@@ -6,7 +6,8 @@
 #   ./warp_theme_manager.sh set "ThemeName" # Set theme
 #   ./warp_theme_manager.sh current        # Show current theme
 
-WARP_CONFIG="/home/sebs/.config/warp-terminal/user_preferences.json"
+WARP_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/warp-terminal/user_preferences.json"
+WARP_SETTINGS="${XDG_CONFIG_HOME:-$HOME/.config}/warp-terminal/settings.toml"
 WARP_THEMES_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/warp-terminal/themes"
 
 show_usage() {
@@ -21,14 +22,31 @@ show_usage() {
 }
 
 get_current_theme() {
-    if [ -f "$WARP_CONFIG" ]; then
+    if [ -f "$WARP_SETTINGS" ]; then
+        awk '
+            /^\[appearance\.themes\][[:space:]]*$/ { in_themes=1; next }
+            in_themes && /^\[/ { in_themes=0 }
+            in_themes && /^[[:space:]]*theme[[:space:]]*=/ {
+                if (match($0, /name[[:space:]]*=[[:space:]]*"[^"]+"/)) {
+                    value=substr($0, RSTART, RLENGTH)
+                    sub(/^[^"]*"/, "", value); sub(/"$/, "", value)
+                    print value
+                } else {
+                    sub(/^[^=]*=[[:space:]]*/, "")
+                    gsub(/"/, "")
+                    print
+                }
+                exit
+            }
+        ' "$WARP_SETTINGS"
+    elif [ -f "$WARP_CONFIG" ]; then
         if command -v jq &> /dev/null; then
             jq -r '.prefs.Theme // "Not set"' "$WARP_CONFIG" | sed 's/^"\(.*\)"$/\1/'
         else
             grep '"Theme"' "$WARP_CONFIG" | sed 's/.*"Theme": "\\\\\"\(.*\)\\\\\\"".*/\1/'
         fi
     else
-        echo "Config file not found"
+        echo "Settings file not found"
     fi
 }
 
@@ -72,13 +90,10 @@ set_theme() {
         exit 1
     fi
     
-    if [ ! -f "$WARP_CONFIG" ]; then
-        echo "Error: Warp config file not found at $WARP_CONFIG"
+    if [ ! -f "$WARP_SETTINGS" ] && [ ! -f "$WARP_CONFIG" ]; then
+        echo "Error: Warp settings file not found at $WARP_SETTINGS or $WARP_CONFIG"
         exit 1
     fi
-    
-    # Backup config
-    cp "$WARP_CONFIG" "$WARP_CONFIG.backup.$(date +%Y%m%d_%H%M%S)"
     
     # Check if this is a custom theme (has a yaml file)
     local theme_path="${WARP_THEMES_DIR}/${theme_name}.yaml"
@@ -86,7 +101,61 @@ set_theme() {
         theme_path="${WARP_THEMES_DIR}/${theme_name}.yml"
     fi
     
-    # Set theme
+    # Current Warp hot-reloads settings.toml.  user_preferences.json is a
+    # fallback for older Warp releases that predate TOML appearance settings.
+    if [ -f "$WARP_SETTINGS" ]; then
+        local settings_tmp toml_theme
+        cp "$WARP_SETTINGS" "$WARP_SETTINGS.backup.$(date +%Y%m%d_%H%M%S)"
+        ls -1t "$WARP_SETTINGS".backup.* 2>/dev/null | tail -n +6 | xargs -r rm -f
+
+        if [ -f "$theme_path" ]; then
+            toml_theme="{ custom = { name = \"$theme_name\", path = \"$theme_path\" } }"
+        else
+            toml_theme="\"$theme_name\""
+        fi
+
+        settings_tmp="${WARP_SETTINGS}.tmp"
+        if ! awk -v theme="$toml_theme" '
+            /^\[appearance\.themes\][[:space:]]*$/ { in_themes=1; seen=1; print; next }
+            in_themes && /^\[/ {
+                if (!wrote_theme) print "theme = " theme
+                if (!wrote_system) print "system_theme = false"
+                in_themes=0
+            }
+            in_themes && /^[[:space:]]*theme[[:space:]]*=/ {
+                if (!wrote_theme) print "theme = " theme
+                wrote_theme=1
+                next
+            }
+            in_themes && /^[[:space:]]*system_theme[[:space:]]*=/ {
+                print "system_theme = false"
+                wrote_system=1
+                next
+            }
+            { print }
+            END {
+                if (in_themes) {
+                    if (!wrote_theme) print "theme = " theme
+                    if (!wrote_system) print "system_theme = false"
+                } else if (!seen) {
+                    print ""
+                    print "[appearance.themes]"
+                    print "theme = " theme
+                    print "system_theme = false"
+                }
+            }
+        ' "$WARP_SETTINGS" > "$settings_tmp" || ! mv "$settings_tmp" "$WARP_SETTINGS"; then
+            rm -f "$settings_tmp"
+            echo "Error: Could not update $WARP_SETTINGS" >&2
+            return 1
+        fi
+        echo "✓ Theme changed in $WARP_SETTINGS (Warp applies this live)."
+        return 0
+    fi
+
+    # Legacy JSON fallback.
+    cp "$WARP_CONFIG" "$WARP_CONFIG.backup.$(date +%Y%m%d_%H%M%S)"
+    ls -1t "$WARP_CONFIG".backup.* 2>/dev/null | tail -n +6 | xargs -r rm -f
     if [ -f "$theme_path" ]; then
         # Custom theme - use the new format with path
         echo "Setting custom theme to: $theme_name"
@@ -156,8 +225,8 @@ install_omarchy_themes() {
         local count=$(ls "$script_dir/themes"/*.yaml 2>/dev/null | wc -l)
         echo "✓ Installed $count omarchy themes!"
     else
-        echo "No omarchy themes found. Run the converter first:"
-        echo "  $script_dir/convert_omarchy_themes_v2.sh"
+        echo "No omarchy themes found. Run the sync script first:"
+        echo "  $script_dir/sync_omarchy_theme.sh"
         return 1
     fi
 }
